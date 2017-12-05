@@ -18,7 +18,7 @@ int speedB = 99 * defaultRate;
 const bool IS_LINE = 0;
 const bool NOT_LINE = 1;
 
-int lastState = -1;
+int lastState = 100;
 
 // use to avoid out of line;
 int tryTime = 0;
@@ -31,24 +31,38 @@ void traceLineLoop() {
   
 
   if (M == IS_LINE && L != IS_LINE && R != IS_LINE) {
+    // state = 100
+    if (lastState == 001) {
+      turnLeft(-0.5);
+      delay(20);
+    } else if (lastState == 010) {
+      turnRight(-0.5);
+      delay(20);
+    }
     goStraight(1);
-    lastState = 0;
+    lastState = 100;
   } else if (M == IS_LINE && L == IS_LINE && R != IS_LINE) {
-    turnLeft(0.5);
-    lastState = 1;
-  } else if (M == IS_LINE && R == IS_LINE && L != IS_LINE) {
-    turnRight(0.5);
-    lastState = 2;
-  } else if (L == IS_LINE && R == IS_LINE) {
-    goStraight(1);
-    lastState = 0;
-  } else if (L == IS_LINE) {
+    // state = 110 
     turnLeft(0);
-    lastState = 1;
-  } else if (R == IS_LINE) {
+    lastState = 110;
+  } else if (M == IS_LINE && L != IS_LINE && R == IS_LINE) {
+    // state = 101
     turnRight(0);
-    lastState = 2;
+    lastState = 101; 
+  } else if (L == IS_LINE && R == IS_LINE) {
+    //  state = 111 || 011
+    //  十字路口可能情况
+    goStraight(1);
+    lastState = 111; 
+  } else if (M != IS_LINE && L == IS_LINE && R != IS_LINE) {
+    //  state = 010
+    turnLeft(0);
+  } else if (M != IS_LINE && L != IS_LINE && R == IS_LINE) {
+    //  state = 001
+    turnRight(0);
+    lastState = 001;
   } else {
+    //  出界判定
     if (lastState == 0) {
       tryTime++;
       if (MaxTryTime == tryTime) {
