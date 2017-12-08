@@ -18,58 +18,73 @@ int speedB = 99 * defaultRate;
 const bool IS_LINE = 0;
 const bool NOT_LINE = 1;
 
-int lastState = 100;
+String lastState = "111";
 
 // use to avoid out of line;
 int tryTime = 0;
 const int MaxTryTime = 100;
 
+void testLoop() {
+  turnLeft(-0.8);
+  delay(50); //100 * 4 = 90度
+  stopSetting();
+  delay(1000);
+}
+
 void traceLineLoop() {
   bool M = digitalRead(MLT);
   bool L = digitalRead(LLT);
   bool R = digitalRead(RLT);
-  
+
+  Serial.println(lastState);
 
   if (M == IS_LINE && L != IS_LINE && R != IS_LINE) {
-    // state = 100
-    if (lastState == 001) {
-      turnLeft(-0.5);
-      delay(20);
-    } else if (lastState == 010) {
-      turnRight(-0.5);
-      delay(20);
+    if (lastState == "110") {
+      turnLeft(-0.8);
+      delay(50);
+      Serial.println("turnLeft(-0.6)");
+    } else if (lastState == "101") {
+      turnRight(-0.8);
+      delay(50);
+      Serial.println("turnRight(-0.6)");
     }
     goStraight(1);
-    lastState = 100;
-  } else if (M == IS_LINE && L == IS_LINE && R != IS_LINE) {
-    // state = 110 
+    changeLastState(M, L, R);
+  } else if (M == IS_LINE && L == IS_LINE && R != IS_LINE) { 
     turnLeft(0);
-    lastState = 110;
+    changeLastState(M, L, R);
   } else if (M == IS_LINE && L != IS_LINE && R == IS_LINE) {
-    // state = 101
     turnRight(0);
-    lastState = 101; 
+    changeLastState(M, L, R);
   } else if (L == IS_LINE && R == IS_LINE) {
     //  state = 111 || 011
     //  十字路口可能情况
     goStraight(1);
-    lastState = 111; 
+    changeLastState(M, L, R);
   } else if (M != IS_LINE && L == IS_LINE && R != IS_LINE) {
-    //  state = 010
     turnLeft(0);
+    changeLastState(M, L, R);
   } else if (M != IS_LINE && L != IS_LINE && R == IS_LINE) {
-    //  state = 001
     turnRight(0);
-    lastState = 001;
+    changeLastState(M, L, R);
   } else {
     //  出界判定
-    if (lastState == 0) {
-      tryTime++;
-      if (MaxTryTime == tryTime) {
-        setBack();
-      }
-    }
+//    lastState = "000";
+//    if (lastState.equals("000")) {
+//      tryTime++;
+//      if (MaxTryTime <= tryTime) {
+//        Serial.println(tryTime);
+//        setBack();
+//      }
+//    }
   }
+}
+
+void changeLastState(bool m, bool l, bool r) {
+  lastState = "";
+  lastState += m ? '1' : '0';
+  lastState += l ? '1' : '0';
+  lastState += r ? '1' : '0';
 }
 
 void setup()
@@ -81,13 +96,14 @@ void setup()
   digitalWrite(INB, LOW);
 
   //初始方向
-  setForward();
+  goStraight(1);
   //串口输出
   Serial.begin(9600);
 }
 
 void loop()
 {
+//  testLoop();
   traceLineLoop();
 }
 
