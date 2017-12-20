@@ -8,10 +8,10 @@
 
 /* ---------------------global defined-------------------- */
 
-const int INA = 4; // 电机A正反转控制端
-const int PWMA = 5; //  电机A调速端
-const int INB = 7; // 电机B正反控制端
-const int PWMB = 6; //  电机B调速端
+const int INA = 7; // 电机A正反转控制端
+const int PWMA = 6; //  电机A调速端
+const int INB = 4; // 电机B正反控制端
+const int PWMB = 5; //  电机B调速端
 
 const int MLT = 8;  //  寻线传感器M
 const int LLT = 9;  //  寻线传感器L
@@ -24,8 +24,8 @@ const int IRM = 14;  //  红外传感器M
 const int IRL = 15;  //  红外传感器L
 const int IRR = 16; //  红外传感器R
 
-const int defaultSpeedA = 90 * 1.5;
-const int defaultSpeedB = 99 * 1.5;
+const int defaultSpeedA = 99 * 1.5;
+const int defaultSpeedB = 90 * 1.5;
 int speedA = defaultSpeedA;
 int speedB = defaultSpeedB;
 
@@ -47,10 +47,8 @@ long dis;
 SR04 sr04 = SR04(EchoPin, TrigPin);
 
 //  控制动作执行次数
-const int MAX_TRYTIME = 1000;
+const int MAX_TRYTIME = 100;
 int tryTime = 0;
-
-
 
 //  动作定义
 typedef enum _Action {
@@ -58,8 +56,6 @@ typedef enum _Action {
   ATTACK,
   FINDING_TARGET
 } Action;
-
-
 
 //  记录当前动作以及前一次动作
 Action currentAction = FINDING_TARGET;
@@ -73,35 +69,39 @@ int lastFindingAction = 0;
 void updateAction(Action a) {
   lastAction = currentAction;
   currentAction = a;
-  if (lastAction != currentAction) tryTime = 0;
-  if (currentAction != FINDING_TARGET) lastFindingAction = 0;
+  tryTime = 0;
 }
 
-boolean isNearEdge() {
-  return (value_MLT == IS_LINE) || (value_LLT == IS_LINE) || (value_RLT == IS_LINE);
-}
-
-void stayAwayFromEdge() {
+bool stayAwayFromEdge() {
   //巡线检测状态
   value_MLT = digitalRead(MLT);
   value_LLT = digitalRead(LLT);
   value_RLT = digitalRead(RLT);
   if (value_MLT == IS_LINE) {
-    goBack(1, 1);
-  } else if (value_LLT == IS_LINE) {
-    turnRight(0.8);
-  } else if (value_RLT == IS_LINE) {
-    turnLeft(0.8);
+    if (value_LLT == IS_LINE) {
+      turnRight(0);
+    } else if (value_LLT == IS_LINE) {
+      turnLeft(0);
+    } else {
+      goStraightFast();
+    }
+    return true;
+  } else if (value_LLT == IS_LINE || value_RLT == IS_LINE) {
+    //goBack(1, 1);
+    setBack();
+    return true;
+  } else {
+    return false;
   }
-  //if (tryTime >= MAX_TRYTIME) updateAction(FINDING_TARGET);
 }
 
 void findTarget() {
-  setSpeedValue(1.1, 1.1);
   if (dis <= 30) {
     stopCar(50);
     lastFindingAction++;
-    if (lastFindingAction > 20) {
+    if (lastFindingAction > 10) {
+      lastFindingAction = 0;
+      stopCar(0);
       updateAction(ATTACK);
     }
   } else {
@@ -115,16 +115,26 @@ void findTarget() {
 }
 
 void attack() {
-  if (tryTime < 500) goBack(1, 1);
-  else goStraight(1);
+  if (tryTime < MAX_TRYTIME / 5) {
+//    if (!value_IRL) turnLeft(0.6);
+//    else if (!value_IRR) turnRight(0.6); 
+    
+//    else goStraightFast();
+  }
+//  else goBack(1,0.6);
+  else {
+    goStraight(1);
+  }
 }
 
 void act() {
   switch (currentAction) {
     case MOVEING_AWAY_FROM_EDGE:
-      stayAwayFromEdge();
+      if (tryTime >= MAX_TRYTIME / 5) updateAction(FINDING_TARGET);
+      break;
     case ATTACK:
       attack();
+      if (tryTime >= MAX_TRYTIME) updateAction(FINDING_TARGET);
       break;
     case FINDING_TARGET:
       findTarget();
@@ -133,65 +143,71 @@ void act() {
       break;
   }
   tryTime++;
-  Serial.println("t++");
+  //Serial.println("t++");
 }
 
 void sumoLoop() {
-  //  更新传感器值
-  updateValue();
-  //  判断是不是在边界附近，优先级最高
-  if (isNearEdge()) {
-    tryTime = 0;
+  if (stayAwayFromEdge()) {
     updateAction(MOVEING_AWAY_FROM_EDGE);
+  } else {
+    updateValues();
+    act();
   }
-  
-  act();
 }
 
 void loop()
 {
-//  sumoLoop();
-//  delay(1000);
-  updateValue();
+//  updateValues();
   stayAwayFromEdge();
+//  act();
+//  sumoLoop();
+  
 }
 
 /* -----------car running function code place-------------- */
 
-void updateValue() {
-  Serial.println("---------------------------------------------");
-  //巡线检测状态
-  value_MLT = digitalRead(MLT);
-  value_LLT = digitalRead(LLT);
-  value_RLT = digitalRead(RLT);
-  Serial.print("MLT: ");
-  Serial.println(value_MLT);
-  Serial.print("LLT: ");
-  Serial.println(value_LLT);
-  Serial.print("RLT: ");
-  Serial.println(value_RLT);
+//  for debug
+//void showValues() {
+//  Serial.println("---------------------------------------------");
+//  Serial.print("MLT: ");
+//  Serial.println(value_MLT);
+//  Serial.print("LLT: ");
+//  Serial.println(value_LLT);
+//  Serial.print("RLT: ");
+//  Serial.println(value_RLT);
+//  
+//  Serial.print("Dis:");
+//  Serial.print(dis);
+//  Serial.println(" cm");
+//  
+//  Serial.print("IRM: ");
+//  Serial.println(value_IRM);
+//  Serial.print("IRL: ");
+//  Serial.println(value_IRL);
+//  Serial.print("IRR: ");
+//  Serial.println(value_IRR);
+//
+//  Serial.print("IRM: ");
+//  Serial.println(value_IRM);
+//  Serial.print("IRL: ");
+//  Serial.println(value_IRL);
+//  Serial.print("IRR: ");
+//  Serial.println(value_IRR); 
+//}
+
+void updateValues() {
+  // 由于巡线检测状态需要及时反馈，所以单独出来处理；
+//  value_MLT = digitalRead(MLT);
+//  value_LLT = digitalRead(LLT);
+//  value_RLT = digitalRead(RLT)
   
   //距离状态
   dis = sr04.Distance();
-  Serial.print("Dis:");
-  Serial.print(dis);
-  Serial.println(" cm");
   
   //  红外状态
   value_IRM = digitalRead(IRM);
   value_IRL = digitalRead(IRL);
   value_IRR = digitalRead(IRR);
-  Serial.print("IRM: ");
-  Serial.println(value_IRM);
-  Serial.print("IRL: ");
-  Serial.println(value_IRL);
-  Serial.print("IRR: ");
-  Serial.println(value_IRR);
-
-  Serial.print("Current Action: ");
-  Serial.println(currentAction);
-  Serial.print("tryTime: ");
-  Serial.println(tryTime);
 }
 
 void setup()
@@ -224,7 +240,7 @@ void setup()
 
 }
 
-void stopSetting() {
+void setStop() {
   analogWrite(PWMA, 0);
   analogWrite(PWMB, 0);
 }
@@ -244,9 +260,8 @@ void stopCar(int _delay) {
   boolean db = digitalRead(INB);
   digitalWrite(INA, !da);
   digitalWrite(INB, !db);
-  delay(_delay);
-  analogWrite(PWMA, 0);
-  analogWrite(PWMB, 0);
+  if (_delay != 0) delay(_delay);
+  setStop();
   setForward();
 }
 
@@ -256,6 +271,14 @@ void stopCar(int _delay) {
 void goStraight(float rate) {
   setForward();
   setSpeedValue(rate, rate);
+}
+
+
+
+void goStraightFast() {
+  setForward();
+  analogWrite(PWMA, 230);
+  analogWrite(PWMB, 255);
 }
 
 void goBack(float rate1, float rate2) {
@@ -271,7 +294,7 @@ void turnLeft(float rate) {
   } else {
     setForward();
   }
-  turn(rate, 1, 0);
+  setSpeedValue(rate, 1);
 }
 
 void turnRight(float rate) {
@@ -282,17 +305,7 @@ void turnRight(float rate) {
   } else {
     setForward();
   }
-  turn(1, rate, 0);
-}
-
-/***
- * @param rate, control the speed of the left wheel.
- * @param rate, control the speed of the right wheel.
- * @param _delay, give a delay if you need.
- */
-void turn(float rate1, float rate2, int _delay) {
-  setSpeedValue(rate1, rate2);
-  delay(_delay);
+  setSpeedValue(1, rate);
 }
 
 void setSpeedValue(float rate1, float rate2) {
